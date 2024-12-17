@@ -1,35 +1,34 @@
 import serial
 import time
 import numpy as np
+import argparse
+from datetime import datetime
+import pickle
+import os
 
 # Change the configuration file name
-configFileName = '/home/pi/mm_Wave_Radar_IWR6843AOPEVM/config_file.cfg'
-CLIport = {}
-Dataport = {}
 byteBuffer = np.zeros(2**15,dtype = 'uint8')
 byteBufferLength = 0;
 
+def parse_args():
+    parser = argparse.ArgumentParser(description='Radar data capture')
+    parser.add_argument('--config', default='config_file.cfg', help='Configuration file name')
+    parser.add_argument('--cliport', default='COM5', help='Data (enhanced) port')
+    parser.add_argument('--dataport', default='COM6', help='CLI (standard) port')
+    parser.add_argument('--savepath', default='data/test.pkl', help='Path to save the data')
+    return parser.parse_args()
 
 # ------------------------------------------------------------------
 
 # Function to configure the serial ports and send the data from
 # the configuration file to the radar
-def serialConfig(configFileName):
-    
-    global CLIport
-    global Dataport
+def serialConfig(args):
     # Open the serial ports for the configuration and the data ports
-    
-    # Raspberry pi
-    CLIport = serial.Serial('/dev/ttyUSB0', 115200)
-    Dataport = serial.Serial('/dev/ttyUSB1', 921600)
-    
-    # Windows
-    #CLIport = serial.Serial('COM3', 115200)
-    #Dataport = serial.Serial('COM4', 921600)
+    CLIport = serial.Serial(args.cliport, 115200)
+    Dataport = serial.Serial(args.dataport, 921600)
 
     # Read the configuration file and send it to the board
-    config = [line.rstrip('\r\n') for line in open(configFileName)]
+    config = [line.rstrip('\r\n') for line in open(args.config)]
     for i in config:
         CLIport.write((i+'\n').encode())
         print(i)
@@ -219,7 +218,7 @@ def readAndParseData68xx(Dataport, configParameters):
                     idX += 4
                 
                 # Store the data in the detObj dictionary
-                detObj = {"numObj": numDetectedObj, "x": x, "y": y, "z": z, "velocity":velocity}
+                detObj = {"time": str(datetime.now()), "numObj": numDetectedObj, "x": x, "y": y, "z": z, "velocity":velocity}
                 dataOK = 1
                 
  
@@ -243,7 +242,6 @@ def readAndParseData68xx(Dataport, configParameters):
 def update():
      
     dataOk = 0
-    global detObj
     x = []
     y = []
       
@@ -255,40 +253,49 @@ def update():
         x = -detObj["x"]
         y = detObj["y"]
         
+        
+          
+          
           
     return dataOk
 
 
 # -------------------------    MAIN   -----------------------------------------  
+if __name__ == '__main__':
+    # Parse the arguments
+    args = parse_args()
 
-# Configurate the serial port
-CLIport, Dataport = serialConfig(configFileName)
+    # Configurate the serial port
+    CLIport, Dataport = serialConfig(args)
 
-# Get the configuration parameters from the configuration file
-configParameters = parseConfigFile(configFileName)
-   
-# Main loop 
-detObj = {}  
-frameData = {}    
-currentIndex = 0
-while True:
-    try:
-        # Update the data and check if the data is okay
-        dataOk = update()
-        
-        if dataOk:
-            # Store the current frame into frameData
-            frameData[currentIndex] = detObj
-            currentIndex += 1
-        
-        time.sleep(0.05) # Sampling frequency of 30 Hz
-        
-    # Stop the program and close everything if Ctrl + c is pressed
-    except KeyboardInterrupt:
-        CLIport.write(('sensorStop\n').encode())
-        CLIport.close()
-        Dataport.close()
-        win.close()
-        break
+    # Get the configuration parameters from the configuration file
+    configParameters = parseConfigFile(args.config)
+    
+    # Main loop 
+    detObj = {}  
+    frameData = {}    
+    currentIndex = 0
+    while True:
+        try:
+            # Update the data and check if the data is okay
+            dataOk = update()
+            
+            if dataOk:
+                # Store the current frame into frameData
+                frameData[currentIndex] = detObj
+                currentIndex += 1
+            
+            time.sleep(0.05) # Sampling frequency of 30 Hz
+            
+        # Stop the program and close everything if Ctrl + c is pressed
+        except KeyboardInterrupt:
+            CLIport.write(('sensorStop\n').encode())
+            CLIport.close()
+            Dataport.close()
+            break
+
+    os.makedirs(os.path.dirname(args.savepath), exist_ok=True)
+    with open(args.savepath, 'wb') as f:
+        pickle.dump(frameData, f)
         
     

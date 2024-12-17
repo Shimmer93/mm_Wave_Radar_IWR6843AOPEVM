@@ -12,5 +12,27 @@ mmwave_live_capture.py simply decodes the sensor data and for live viewing in th
 
 mmwave_to_mavlink.py parses the data to a flight controller on mavlink for use of mmwave radar as proximity sensor in ardupilot autopilot stack. 
 
-numpy, pyserial, apscheduler and pymavlink are depencies needed to run the last python script. Detailed decription on how to install and run python script will be uploaded later by me.
-
+## Data Collection
+1. Clone the repo and enter it:
+    
+    ```bash
+    git clone https://github.com/Shimmer93/mm_Wave_Radar_IWR6843AOPEVM.git
+    cd mm_Wave_Radar_IWR6843AOPEVM
+    ```
+    
+2. Start a new environment (ignore if you already have an environment) and activate it:
+    
+    ```bash
+    conda create -n mm
+    conda activate mm
+    ```
+    
+3. Install dependencies:
+    ```bash
+    pip install numpy pyserial apscheduler pymavlink
+    ```
+4. Run the code:
+    ```bash
+    python mmwave_live_capture.py --cliport COM5 --dataport COM6 --savepath data/test.pkl
+    ```
+5. Interrupt the program (`Ctrl+C`) to stop the collection.

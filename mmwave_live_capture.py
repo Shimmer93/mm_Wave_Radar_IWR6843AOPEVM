@@ -6,15 +6,22 @@ from datetime import datetime
 import pickle
 import os
 
-# Change the configuration file name
 byteBuffer = np.zeros(2**15,dtype = 'uint8')
-byteBufferLength = 0;
+byteBufferLength = 0
+OBJ_STRUCT_SIZE_BYTES = 12
+BYTE_VEC_ACC_MAX_SIZE = 2**15
+MMWDEMO_UART_MSG_DETECTED_POINTS = 1
+MMWDEMO_UART_MSG_RANGE_PROFILE   = 2
+maxBufferSize = 2**15
+tlvHeaderLengthInBytes = 8
+pointLengthInBytes = 16
+magicWord = [2, 1, 4, 3, 6, 5, 8, 7]
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Radar data capture')
     parser.add_argument('--config', default='config_file.cfg', help='Configuration file name')
-    parser.add_argument('--cliport', default='COM5', help='Data (enhanced) port')
-    parser.add_argument('--dataport', default='COM6', help='CLI (standard) port')
+    parser.add_argument('--cliport', default='COM5', help='CFG (enhanced) port')
+    parser.add_argument('--dataport', default='COM6', help='Data (standard) port')
     parser.add_argument('--savepath', default='data/test.pkl', help='Path to save the data')
     return parser.parse_args()
 
@@ -95,16 +102,6 @@ def parseConfigFile(configFileName):
 def readAndParseData68xx(Dataport, configParameters):
     global byteBuffer, byteBufferLength
     
-    # Constants
-    OBJ_STRUCT_SIZE_BYTES = 12;
-    BYTE_VEC_ACC_MAX_SIZE = 2**15;
-    MMWDEMO_UART_MSG_DETECTED_POINTS = 1;
-    MMWDEMO_UART_MSG_RANGE_PROFILE   = 2;
-    maxBufferSize = 2**15;
-    tlvHeaderLengthInBytes = 8;
-    pointLengthInBytes = 16;
-    magicWord = [2, 1, 4, 3, 6, 5, 8, 7]
-    
     # Initialize variables
     magicOK = 0 # Checks if magic number has been read
     dataOK = 0 # Checks if the data has been read correctly
@@ -112,6 +109,7 @@ def readAndParseData68xx(Dataport, configParameters):
     detObj = {}
     
     readBuffer = Dataport.read(Dataport.in_waiting)
+    current_time = str(datetime.now())
     byteVec = np.frombuffer(readBuffer, dtype = 'uint8')
     byteCount = len(byteVec)
     
@@ -218,7 +216,7 @@ def readAndParseData68xx(Dataport, configParameters):
                     idX += 4
                 
                 # Store the data in the detObj dictionary
-                detObj = {"time": str(datetime.now()), "numObj": numDetectedObj, "x": x, "y": y, "z": z, "velocity":velocity}
+                detObj = {"time": current_time, "numObj": numDetectedObj, "x": x, "y": y, "z": z, "velocity":velocity}
                 dataOK = 1
                 
  
@@ -241,23 +239,13 @@ def readAndParseData68xx(Dataport, configParameters):
 # Funtion to update the data and display in the plot
 def update():
      
-    dataOk = 0
-    x = []
-    y = []
-      
     # Read and parse the received data
     dataOk, frameNumber, detObj = readAndParseData68xx(Dataport, configParameters)
     
     if dataOk and len(detObj["x"])>0:
         print(detObj)
-        x = -detObj["x"]
-        y = detObj["y"]
-        
-        
           
-          
-          
-    return dataOk
+    return dataOk, frameNumber, detObj
 
 
 # -------------------------    MAIN   -----------------------------------------  
@@ -273,19 +261,16 @@ if __name__ == '__main__':
     
     # Main loop 
     detObj = {}  
-    frameData = {}    
-    currentIndex = 0
+    frameData = []    
     while True:
         try:
             # Update the data and check if the data is okay
-            dataOk = update()
+            dataOk, _, detObj = update()
             
             if dataOk:
                 # Store the current frame into frameData
-                frameData[currentIndex] = detObj
-                currentIndex += 1
-            
-            time.sleep(0.05) # Sampling frequency of 30 Hz
+                frameData.append(detObj)
+                time.sleep(0.05) # Since the frame rate is 10 Hz, reduce the CPU usage
             
         # Stop the program and close everything if Ctrl + c is pressed
         except KeyboardInterrupt:
